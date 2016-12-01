@@ -77,12 +77,13 @@ module JSONAPI
       keys = cache_ids.map do |(id, cache_key)|
         [type, id, cache_key, serializer_config_key, context_key]
       end
-
-      hits = JSONAPI.configuration.resource_cache.read_multi(*keys).reject{|_,v| v.nil? }
+      serialized_keys = keys.map{|key| serialize_key(key)}
+      hits = JSONAPI.configuration.resource_cache.read_multi(*serialized_keys).reject{|_,v| v.nil? }
       return keys.each_with_object({}) do |key, hash|
         (_, id, _, _) = key
-        if hits.has_key?(key)
-          hash[id] = self.from_cache_value(resource_klass, context, hits[key])
+        serialized_key = serialize_key(key)
+        if hits.has_key?(serialized_key)
+          hash[id] = self.from_cache_value(resource_klass, context, hits[serialized_key])
         else
           hash[id] = nil
         end
@@ -119,9 +120,12 @@ module JSONAPI
       )
 
       key = [resource_klass._type, id, cache_key, serializer_config_key, context_key]
-      JSONAPI.configuration.resource_cache.write(key, cr.to_cache_value)
+      JSONAPI.configuration.resource_cache.write(serialize_key(key), cr.to_cache_value)
       return [id, cr]
     end
 
+    def self.serialize_key(key)
+      key.join('/')
+    end
   end
 end
